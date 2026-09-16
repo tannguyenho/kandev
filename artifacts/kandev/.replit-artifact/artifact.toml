@@ -1,0 +1,23 @@
+kind = "web"
+previewPath = "/"
+title = "Kandev"
+description = "Official upstream Kandev runtime and web UI, served unchanged through a single foreground process for task orchestration, coding-agent sessions, Git worktrees, review, and merge workflows."
+version = "1.0.0"
+id = "artifacts/kandev"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18114
+
+[services.development]
+run = "pnpm --filter @workspace/kandev run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/kandev", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/kandev", "run", "serve" ]
+
+[services.env]
+PORT = "18114"
+BASE_PATH = "/"

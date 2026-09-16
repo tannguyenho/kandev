@@ -1,15 +1,17 @@
-# [Project name]
+# Kandev on Replit
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Official upstream Kandev runtime configured for a single Replit Webview process.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm start` — run the official Kandev v0.94.0 npm runtime on `0.0.0.0:$PORT`
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Kandev stores its SQLite database, task data, repositories, sessions, and worktrees under `.kandev-home/.kandev/`. This directory is persistent in the project filesystem and intentionally ignored by Git.
 
 ## Stack
 
@@ -30,7 +32,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Official Kandev web UI, backend API, WebSocket gateway, Kanban workflows, Git worktrees, review/merge flows, and supported coding-agent adapters.
 
 ## User preferences
 
@@ -38,7 +40,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Keep Kandev as the foreground process. Do not wrap the start command with `nohup`, background it, or replace the upstream UI.
+- The Replit entrypoint pins the tested official npm runtime version. Upgrade deliberately after reviewing upstream release notes.
 
 ## Pointers
 

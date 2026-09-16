@@ -10,6 +10,7 @@ out-tsc
 
 # dependencies
 node_modules
+.kandev-home/
 
 # IDEs and editors
 /.idea
