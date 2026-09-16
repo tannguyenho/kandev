@@ -3,6 +3,21 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export HOME="${KANDEV_REPLIT_HOME:-$ROOT_DIR/.kandev-home}"
-mkdir -p "$HOME"
+NPM_GLOBAL_PREFIX="$HOME/.npm-global"
+NPM_CACHE_DIR="${npm_config_cache:-$HOME/.npm}"
+NPM_REGISTRY_URL="${npm_config_registry:-${NPM_CONFIG_REGISTRY:-}}"
+while IFS='=' read -r config_name _; do
+  unset "$config_name"
+done < <(env | sed -n 's/^\(NPM_CONFIG_[A-Za-z0-9_]*\|npm_config_[A-Za-z0-9_]*\)=.*/\1/p')
+export NPM_CONFIG_PREFIX="$NPM_GLOBAL_PREFIX"
+export npm_config_prefix="$NPM_GLOBAL_PREFIX"
+export npm_config_cache="$NPM_CACHE_DIR"
+export npm_config_userconfig="$HOME/.npmrc"
+if [[ -n "$NPM_REGISTRY_URL" ]]; then
+  export NPM_CONFIG_REGISTRY="$NPM_REGISTRY_URL"
+  export npm_config_registry="$NPM_REGISTRY_URL"
+fi
+export PATH="$NPM_GLOBAL_PREFIX/bin:$ROOT_DIR/scripts/bin:$PATH"
+mkdir -p "$HOME" "$NPM_GLOBAL_PREFIX" "$NPM_GLOBAL_PREFIX/bin" "$NPM_CACHE_DIR"
 
 exec npx --yes opencode-ai@1.18.31 "$@"
