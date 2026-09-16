@@ -3,6 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export HOME="${KANDEV_REPLIT_HOME:-$ROOT_DIR/.kandev-home}"
+# Keep Kandev-managed tools isolated from Replit's shared XDG config. In
+# particular, a pre-existing ~/.config/code-server/config.yaml can otherwise
+# override the embedded editor's port/auth settings.
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CACHE_HOME="$HOME/.cache"
 mkdir -p "$HOME"
 
 # Kandev's Host terminal inherits this environment. npm's default global
@@ -27,9 +33,17 @@ if [[ -n "$NPM_REGISTRY_URL" ]]; then
   export npm_config_registry="$NPM_REGISTRY_URL"
 fi
 export PATH="$NPM_GLOBAL_PREFIX/bin:$ROOT_DIR/scripts/bin:$PATH"
-mkdir -p "$NPM_GLOBAL_PREFIX" "$NPM_GLOBAL_PREFIX/bin" "$NPM_CACHE_DIR"
+mkdir -p "$NPM_GLOBAL_PREFIX" "$NPM_GLOBAL_PREFIX/bin" "$NPM_CACHE_DIR" \
+  "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+
+# Kandev receives its listener through the explicit --port argument below.
+# Leaving Replit's PORT in the child environment makes code-server reuse the
+# Kandev port, ignoring its own allocated --bind-addr and exiting with
+# EADDRINUSE.
+KANDEV_PORT="${PORT:-5000}"
+unset PORT
 
 exec npx --yes kandev@0.94.0 run \
-  --port "${PORT:-5000}" \
+  --port "$KANDEV_PORT" \
   --headless \
   --verbose
