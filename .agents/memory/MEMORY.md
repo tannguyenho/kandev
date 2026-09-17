@@ -1,0 +1,1 @@
+- [Unrelated Git histories](github-sync.md) — preserve both roots with a backup and non-force merge; do not replace either side when syncing a snapshot to an upstream repository.
