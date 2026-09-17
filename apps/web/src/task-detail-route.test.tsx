@@ -1,0 +1,116 @@
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { TaskDetailRoute } from "./task-detail-route";
+import type { FetchedSessionData } from "@/lib/ssr/session-page-state";
+import { taskId, workspaceId, workflowId } from "@/lib/types/ids";
+import type { Task } from "@/lib/types/http";
+
+const mocks = vi.hoisted(() => ({
+  fetchSessionDataForTask: vi.fn(),
+}));
+const KANBAN_TASK_SHELL_TEST_ID = "kanban-task-shell";
+
+vi.mock("@/components/state-hydrator", () => ({
+  StateHydrator: () => <div data-testid="state-hydrator" />,
+}));
+
+vi.mock("@/app/tasks/[id]/kanban-task-shell", () => ({
+  KanbanTaskShell: ({ task, taskId }: { task: Task | null; taskId: string }) => (
+    <div
+      data-testid={KANBAN_TASK_SHELL_TEST_ID}
+      data-route-task-id={taskId}
+      data-task-id={task?.id ?? ""}
+    />
+  ),
+}));
+
+vi.mock("@/lib/ssr/session-page-state", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ssr/session-page-state")>();
+  return {
+    ...actual,
+    fetchSessionDataForTask: mocks.fetchSessionDataForTask,
+    extractInitialRepositories: vi.fn(() => []),
+    extractInitialScripts: vi.fn(() => []),
+  };
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+function makeFetchedData(): FetchedSessionData {
+  return {
+    task: {
+      id: taskId("task-1"),
+      title: "Task one",
+      description: "",
+      workspace_id: workspaceId("workspace-1"),
+      workflow_id: workflowId("workflow-1"),
+      workflow_step_id: "step-1",
+      state: "CREATED",
+      priority: "medium",
+      position: 0,
+      repositories: [],
+      created_at: "2026-06-16T00:00:00Z",
+      updated_at: "2026-06-16T00:00:00Z",
+    },
+    sessionId: "session-1",
+    initialState: {},
+    initialTerminals: [],
+  };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe("TaskDetailRoute", () => {
+  it("shows accessible task-loading progress while route data is pending", async () => {
+    const routeData = deferred<FetchedSessionData>();
+    mocks.fetchSessionDataForTask.mockReturnValueOnce(routeData.promise);
+
+    render(<TaskDetailRoute taskId="task-1" />);
+
+    expect(screen.queryByTestId(KANBAN_TASK_SHELL_TEST_ID)).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("Loading task");
+    expect(screen.getByRole("status").parentElement?.className).toContain("h-full");
+    expect(screen.getByRole("status").parentElement?.className).toContain("min-h-0");
+    expect(screen.getByRole("status").parentElement?.className).not.toContain("h-dvh");
+    expect(screen.getByRole("status").parentElement?.className).not.toContain("h-screen");
+
+    routeData.resolve(makeFetchedData());
+
+    await waitFor(() => {
+      expect(screen.getByTestId(KANBAN_TASK_SHELL_TEST_ID).getAttribute("data-task-id")).toBe(
+        "task-1",
+      );
+    });
+  });
+
+  it("uses boot route data without fetching again", async () => {
+    render(<TaskDetailRoute taskId="task-1" initialData={makeFetchedData()} />);
+
+    expect(mocks.fetchSessionDataForTask).not.toHaveBeenCalled();
+    expect(screen.getByTestId(KANBAN_TASK_SHELL_TEST_ID).getAttribute("data-task-id")).toBe(
+      "task-1",
+    );
+    expect(screen.getByTestId("state-hydrator")).toBeTruthy();
+  });
+
+  it("reaches the unavailable task shell when route data fails", async () => {
+    mocks.fetchSessionDataForTask.mockRejectedValueOnce(new Error("task not found"));
+
+    render(<TaskDetailRoute taskId="missing-task" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId(KANBAN_TASK_SHELL_TEST_ID)).toBeTruthy();
+    });
+    expect(screen.getByTestId(KANBAN_TASK_SHELL_TEST_ID).getAttribute("data-task-id")).toBe("");
+    expect(screen.queryByTestId("state-hydrator")).toBeNull();
+  });
+});

@@ -1,0 +1,203 @@
+import { getLocalStorage, setLocalStorage } from "@/lib/local-storage";
+import {
+  normalizeTaskLaunchRecoveryActions,
+  type TaskLaunchRecoveryAction,
+} from "@/lib/types/task-launch-error";
+import type { AgentErrorCause } from "@/lib/types/task-status-summary";
+
+export type LastAgentError = {
+  message: string;
+  scope?: "session" | "task";
+  occurredAt?: string;
+  agentExecutionId?: string;
+  executionId?: string;
+  phase?: string;
+  attemptId?: string;
+  causes?: AgentErrorCause[];
+  /** Adapter-validated provider remediation URL; never derived from prose. */
+  remediationUrl?: string;
+  code?: string;
+  details?: string;
+  recoveryActions?: TaskLaunchRecoveryAction[];
+  taskRepositoryId?: string;
+  stamp?: string;
+  dismissedAt?: string;
+};
+
+// --- Agent error visibility state (localStorage, global) ---
+//
+// `dismissedAgentErrors` tracks explicit chat-banner dismissals and hides both
+// the banner and task-row badge. `acknowledgedAgentErrors` tracks sidebar-only
+// stale-error acknowledgements and hides task-row badges without hiding chat.
+// Bounded growth: one entry per session that ever had an error.
+
+const DISMISSED_AGENT_ERRORS_KEY = "kandev.dismissedAgentErrors";
+const ACKNOWLEDGED_AGENT_ERRORS_KEY = "kandev.acknowledgedAgentErrors";
+
+export function getStoredDismissedAgentErrors(): Record<string, string> {
+  return getLocalStorage<Record<string, string>>(DISMISSED_AGENT_ERRORS_KEY, {});
+}
+
+export function getStoredAcknowledgedAgentErrors(): Record<string, string> {
+  return getLocalStorage<Record<string, string>>(ACKNOWLEDGED_AGENT_ERRORS_KEY, {});
+}
+
+/**
+ * Merge `map` into whatever is currently in localStorage so concurrent writes
+ * from other tabs (or older versions of this tab's state) are not clobbered.
+ * Entries in `map` win over the on-disk values for the same session.
+ */
+export function setStoredDismissedAgentErrors(map: Record<string, string>): void {
+  const current = getStoredDismissedAgentErrors();
+  setLocalStorage(DISMISSED_AGENT_ERRORS_KEY, { ...current, ...map });
+}
+
+export function setStoredAcknowledgedAgentErrors(map: Record<string, string>): void {
+  const current = getStoredAcknowledgedAgentErrors();
+  setLocalStorage(ACKNOWLEDGED_AGENT_ERRORS_KEY, { ...current, ...map });
+}
+
+export function readLastAgentError(metadata: Record<string, unknown> | null | undefined) {
+  return readLastAgentErrorValue(metadata, false);
+}
+
+/** Reads the durable error breadcrumb even after recovery retired its controls. */
+export function readLastAgentErrorIncludingDismissed(
+  metadata: Record<string, unknown> | null | undefined,
+) {
+  return readLastAgentErrorValue(metadata, true);
+}
+
+function readLastAgentErrorValue(
+  metadata: Record<string, unknown> | null | undefined,
+  includeDismissed: boolean,
+): LastAgentError | null {
+  if (!metadata) return null;
+  const raw = metadata.last_agent_error;
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const message = typeof record.message === "string" ? record.message : "";
+  if (!message) return null;
+  const dismissedAt = readFirstOptionalString(record, ["dismissed_at", "dismissedAt"]);
+  if (dismissedAt && !includeDismissed) return null;
+  return {
+    message,
+    ...readOptionalAgentErrorFields(record),
+    ...(dismissedAt ? { dismissedAt } : {}),
+  };
+}
+
+function readOptionalAgentErrorFields(
+  record: Record<string, unknown>,
+): Omit<LastAgentError, "message"> {
+  return {
+    ...readOptionalAgentErrorIdentity(record),
+    ...readOptionalAgentErrorRecovery(record),
+    ...readStructuredFailureMetadata(record),
+  };
+}
+
+function readOptionalAgentErrorIdentity(
+  record: Record<string, unknown>,
+): Pick<
+  LastAgentError,
+  "occurredAt" | "scope" | "agentExecutionId" | "executionId" | "phase" | "attemptId"
+> {
+  const result: Pick<
+    LastAgentError,
+    "occurredAt" | "scope" | "agentExecutionId" | "executionId" | "phase" | "attemptId"
+  > = {};
+  const occurredAt = readFirstOptionalString(record, ["occurred_at", "occurredAt"]);
+  const scope = readFirstOptionalString(record, ["scope"]);
+  const agentExecutionId = readFirstOptionalString(record, [
+    "agent_execution_id",
+    "agentExecutionId",
+  ]);
+  const executionId = readFirstOptionalString(record, ["execution_id", "executionId"]);
+  const phase = readFirstOptionalString(record, ["phase"]);
+  const attemptId = readFirstOptionalString(record, ["attempt_id", "attemptId"]);
+  if (occurredAt) result.occurredAt = occurredAt;
+  if (scope === "session" || scope === "task") result.scope = scope;
+  if (agentExecutionId) result.agentExecutionId = agentExecutionId;
+  if (executionId) result.executionId = executionId;
+  if (phase) result.phase = phase;
+  if (attemptId) result.attemptId = attemptId;
+  return result;
+}
+
+function readOptionalAgentErrorRecovery(
+  record: Record<string, unknown>,
+): Pick<
+  LastAgentError,
+  "causes" | "remediationUrl" | "recoveryActions" | "taskRepositoryId" | "stamp"
+> {
+  const result: Pick<
+    LastAgentError,
+    "causes" | "remediationUrl" | "recoveryActions" | "taskRepositoryId" | "stamp"
+  > = {};
+  const causes = readAgentErrorCauses(record.causes);
+  const remediationUrl = readFirstOptionalString(record, ["remediation_url", "remediationUrl"]);
+  const recoveryActions = normalizeTaskLaunchRecoveryActions(
+    record.recovery_actions ?? record.recoveryActions,
+  );
+  const taskRepositoryId = readFirstOptionalString(record, [
+    "task_repository_id",
+    "taskRepositoryId",
+  ]);
+  const stamp = readFirstOptionalString(record, ["stamp"]);
+  if (causes.length > 0) result.causes = causes;
+  if (remediationUrl) result.remediationUrl = remediationUrl;
+  if (recoveryActions.length > 0) result.recoveryActions = recoveryActions;
+  if (taskRepositoryId) result.taskRepositoryId = taskRepositoryId;
+  if (stamp) result.stamp = stamp;
+  return result;
+}
+
+function readAgentErrorCauses(value: unknown): AgentErrorCause[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((cause): cause is Record<string, unknown> =>
+      Boolean(cause && typeof cause === "object"),
+    )
+    .slice(0, 2)
+    .map((cause) => ({
+      ...(typeof cause.operation === "string" ? { operation: cause.operation } : {}),
+      ...(typeof cause.code === "string" ? { code: cause.code } : {}),
+      ...(typeof cause.detail === "string" ? { detail: cause.detail } : {}),
+    }))
+    .filter((cause) => Boolean(cause.operation || cause.code || cause.detail));
+}
+
+function readStructuredFailureMetadata(record: Record<string, unknown>) {
+  return {
+    code: readFirstOptionalString(record, ["code", "failure_code", "failureCode"]),
+    details: readFirstOptionalString(record, [
+      "details",
+      "failure_details",
+      "failureDetails",
+      "error_output",
+    ]),
+  };
+}
+
+function readFirstOptionalString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = readOptionalString(record[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+/**
+ * Stable identifier for a specific error event. Two errors share a stamp iff
+ * they have the same occurredAt timestamp and message. Used to decide whether
+ * a prior dismissal still applies after a fresh failure replaces the
+ * `last_agent_error` metadata.
+ */
+export function lastAgentErrorStamp(error: LastAgentError) {
+  return error.stamp ?? `${error.occurredAt ?? ""}:${error.message}`;
+}
+
+function readOptionalString(value: unknown) {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}

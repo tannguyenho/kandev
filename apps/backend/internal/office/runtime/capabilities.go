@@ -1,0 +1,128 @@
+package runtime
+
+import (
+	"github.com/kandev/kandev/internal/office/models"
+	"github.com/kandev/kandev/internal/office/shared"
+)
+
+// WildcardTaskScope grants task mutation access to any task in the run's workspace.
+const WildcardTaskScope = "*"
+
+// Runtime capability keys. These are the stable permission vocabulary exposed
+// to run tokens and runtime API handlers.
+const (
+	CapabilityPostComment      = "post_comment"
+	CapabilityUpdateTaskStatus = "update_task_status"
+	CapabilityCreateTask       = "create_task"
+	CapabilityCreateSubtask    = "create_subtask"
+	CapabilityCreateAgent      = "create_agent"
+	CapabilityListProjects     = "list_projects"
+	CapabilityCreateProject    = "create_project"
+	CapabilityRequestApproval  = "request_approval"
+	CapabilityReadMemory       = "read_memory"
+	CapabilityWriteMemory      = "write_memory"
+	CapabilityListSkills       = "list_skills"
+	CapabilitySpawnAgentRun    = "spawn_agent_run"
+	CapabilityModifyAgents     = "modify_agents"
+	CapabilityDeleteSkills     = "delete_skills"
+)
+
+// AvailableActionRecordStepDecision identifies the advisory runtime decision
+// action that a run prompt may advertise when the agent holds the current
+// workflow seat.
+const AvailableActionRecordStepDecision = "record_step_decision"
+
+// Allows reports whether the named runtime capability is granted.
+func (c Capabilities) Allows(key string) bool {
+	switch key {
+	case CapabilityPostComment:
+		return c.CanPostComments
+	case CapabilityUpdateTaskStatus:
+		return c.CanUpdateTaskStatus
+	case CapabilityCreateTask:
+		return c.CanCreateTasks
+	case CapabilityCreateSubtask:
+		return c.CanCreateSubtasks
+	case CapabilityCreateAgent:
+		return c.CanCreateAgents
+	case CapabilityListProjects:
+		return c.CanListProjects
+	case CapabilityCreateProject:
+		return c.CanCreateProjects
+	case CapabilityRequestApproval:
+		return c.CanRequestApproval
+	case CapabilityReadMemory:
+		return c.CanReadMemory
+	case CapabilityWriteMemory:
+		return c.CanWriteMemory
+	case CapabilityListSkills:
+		return c.CanListSkills
+	case CapabilitySpawnAgentRun:
+		return c.CanSpawnAgentRun
+	case CapabilityModifyAgents:
+		return c.CanModifyAgents
+	case CapabilityDeleteSkills:
+		return c.CanDeleteSkills
+	default:
+		return false
+	}
+}
+
+// WithTaskScope returns a copy of the capabilities with the given task scope.
+func (c Capabilities) WithTaskScope(taskIDs ...string) Capabilities {
+	next := c
+	next.AllowedTaskIDs = append([]string(nil), taskIDs...)
+	return next
+}
+
+// AllowedKeys returns enabled capability keys in stable order.
+func (c Capabilities) AllowedKeys() []string {
+	keys := []string{
+		CapabilityPostComment,
+		CapabilityUpdateTaskStatus,
+		CapabilityCreateTask,
+		CapabilityCreateSubtask,
+		CapabilityCreateAgent,
+		CapabilityListProjects,
+		CapabilityCreateProject,
+		CapabilityRequestApproval,
+		CapabilityReadMemory,
+		CapabilityWriteMemory,
+		CapabilityListSkills,
+		CapabilitySpawnAgentRun,
+		CapabilityModifyAgents,
+		CapabilityDeleteSkills,
+	}
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if c.Allows(key) {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
+// FromAgent derives default runtime capabilities from existing Office
+// role/permission settings.
+func FromAgent(agent *models.AgentInstance) Capabilities {
+	if agent == nil {
+		return Capabilities{}
+	}
+	perms := shared.ResolvePermissions(shared.AgentRole(agent.Role), agent.Permissions)
+	return Capabilities{
+		CanPostComments:     true,
+		CanUpdateTaskStatus: true,
+		CanCreateTasks:      shared.HasPermission(perms, shared.PermCanCreateTasks),
+		CanCreateSubtasks:   shared.HasPermission(perms, shared.PermCanCreateTasks),
+		CanCreateAgents:     shared.HasPermission(perms, shared.PermCanCreateAgents),
+		CanListProjects:     true,
+		CanCreateProjects:   shared.HasPermission(perms, shared.PermCanCreateProjects),
+		CanRequestApproval:  shared.HasPermission(perms, shared.PermCanApprove),
+		CanReadMemory:       true,
+		CanWriteMemory:      true,
+		CanListSkills:       true,
+		CanSpawnAgentRun:    shared.HasPermission(perms, shared.PermCanAssignTasks),
+		CanModifyAgents:     shared.HasPermission(perms, shared.PermCanCreateAgents),
+		CanDeleteSkills:     false,
+	}
+}
