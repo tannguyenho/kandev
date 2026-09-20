@@ -41,6 +41,7 @@ retains ownership of its values, validation, authority, and persistence.
 - [CI performance](requirements/ci-performance.md)
 
 - [Startup lifecycle](requirements/startup-lifecycle.md)
+- [Startup progress visibility](requirements/startup-progress-visibility.md)
 
 - [Agent-accessible Kandev settings](requirements/agent-settings-parity.md)
 
@@ -80,6 +81,7 @@ retains ownership of its values, validation, authority, and persistence.
 - [Setup and Launch Timeout](requirements/setup-launch-timeout.md)
 - [Quiet benign teardown log noise on shutdown](requirements/shutdown-log-noise.md)
 - [Do not surface backend-shutdown turn aborts as agent failures](requirements/shutdown-turn-failure-suppression.md)
+- [Background subsystem context-cancellation log severity](requirements/shutdown-background-canceled-logs.md)
 - [Startup Configuration Parity](requirements/startup-configuration-parity.md)
 - [Prevent Host Sleep During Active Tasks](requirements/task-sleep-inhibition.md)
 - [Traditional Chinese locales (Taiwan and Hong Kong)](requirements/traditional-chinese-locales.md)
@@ -90,6 +92,7 @@ retains ownership of its values, validation, authority, and persistence.
 - [CI performance](system-design/ci-performance.md)
 
 - [Startup lifecycle](system-design/startup-lifecycle.md)
+- [Startup progress visibility](system-design/startup-progress-visibility.md)
 
 - [Agent-accessible Kandev settings](system-design/agent-settings-parity.md)
 - [Core settings domain adoption](system-design/agent-settings-domains.md)
@@ -120,6 +123,7 @@ retains ownership of its values, validation, authority, and persistence.
 - [Workspace Git Status](system-design/workspace-git-status.md)
 - [Go dev launcher and startup version](system-design/go-dev-launcher.md)
 - [Startup database selection continuity](system-design/startup-database-selection-continuity.md)
+- [Background subsystem context-cancellation log severity](system-design/shutdown-background-canceled-logs.md)
 
 ## Migration record
 
